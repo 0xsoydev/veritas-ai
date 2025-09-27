@@ -1,10 +1,10 @@
 "use client"
-import { agentStorageService, StoredAgent } from '@/lib/agentStorageService';
-import { GroqClient } from '@/lib/groqClient';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { AgentConfig } from '@/lib/groqService';
-import { NFTAgent, nftService } from '@/lib/nftService';
+import { GroqClient } from '@/lib/groqClient';
 import { useWallet } from '@/lib/wallet-context';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { agentStorageService, StoredAgent } from '@/lib/agentStorageService';
+import { nftService, NFTAgent } from '@/lib/nftService';
 
 interface AgentBuilderProps {
   initialAgents?: AgentConfig[];
