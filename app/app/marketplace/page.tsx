@@ -1,14 +1,14 @@
 "use client";
+import { useState, useEffect } from 'react';
 import { AgentMarketplace } from '@/components/AgentMarketplace';
-import { agentStorageService, StoredAgent } from '@/lib/agentStorageService';
-import { NFTAgent, nftService } from '@/lib/nftService';
 import { useWallet } from '@/lib/wallet-context';
-import { useEffect, useState } from 'react';
+import { agentStorageService, StoredAgent } from '@/lib/agentStorageService';
+import { NFTAgent } from '@/lib/nftService';
 
 export default function MarketplacePage() {
   const { address } = useWallet();
   const [agents, setAgents] = useState<StoredAgent[]>([]);
-  const [nftAgents, setNftAgents] = useState<NFTAgent[]>([]);
+  const [nftAgents] = useState<NFTAgent[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Load user agents when address changes

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GroqAgentService, AgentConfig, ExecutionContext } from '@/lib/groqService';
+import { GroqAgentService, AgentConfig } from '@/lib/groqService';
 
 // Initialize GroqCloud service
 const groqService = new GroqAgentService();
@@ -7,7 +7,7 @@ const groqService = new GroqAgentService();
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, agent, userInput, context } = body;
+    const { action, agent, userInput } = body;
 
     switch (action) {
       case 'execute':

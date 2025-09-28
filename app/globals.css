@@ -1,26 +1,234 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Bricolage Variable Font */
+@font-face {
+  font-family: 'Bricolage';
+  src: url('/fonts/Bricolage.ttf') format('truetype-variations');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* DMSans Variable Font */
+@font-face {
+  font-family: 'DMSans';
+  src: url('/fonts/DMSans.ttf') format('truetype-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: oklch(95.37% 0.0549 125.19);
+  --secondary-background: oklch(100% 0 0);
+  --foreground: oklch(0% 0 0);
+  --main-foreground: oklch(0% 0 0);
+  --main: oklch(83.29% 0.2331 132.51);
+  --border: oklch(0% 0 0);
+  --ring: oklch(0% 0 0);
+  --overlay: oklch(0% 0 0 / 0.8);
+  --shadow: 4px 4px 0px 0px var(--border);
+  --chart-1: #8AE500;
+  --chart-2: #0099FF;
+  --chart-3: #FF4D50;
+  --chart-4: #FACC00;
+  --chart-5: #7A83FF;
+  --chart-active-dot: #000;
+}
+
+.dark {
+  --background: oklch(23.1% 0.0346 126.75);
+  --secondary-background: oklch(23.93% 0 0);
+  --foreground: oklch(92.49% 0 0);
+  --main-foreground: oklch(0% 0 0);
+  --main: oklch(76.26% 0.21309 132.4002);
+  --border: oklch(0% 0 0);
+  --ring: oklch(100% 0 0);
+  --shadow: 4px 4px 0px 0px var(--border);
+  --chart-1: #7ACC00;
+  --chart-2: #008AE5;
+  --chart-3: #FF6669;
+  --chart-4: #E0B700;
+  --chart-5: #7A83FF;
+  --chart-active-dot: #fff;
 }
 
 @theme inline {
+  --color-main: var(--main);
   --color-background: var(--background);
+  --color-secondary-background: var(--secondary-background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-main-foreground: var(--main-foreground);
+  --color-border: var(--border);
+  --color-overlay: var(--overlay);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --spacing-boxShadowX: 4px;
+  --spacing-boxShadowY: 4px;
+  --spacing-reverseBoxShadowX: -4px;
+  --spacing-reverseBoxShadowY: -4px;
+  --radius-base: 5px;
+  --shadow-shadow: var(--shadow);
+  --font-weight-base: 500;
+  --font-weight-heading: 700;
+
+  /* Bricolage Font Family */
+  --font-family-bricolage: 'Bricolage', ui-sans-serif, system-ui, sans-serif;
+  
+  /* Bricolage Font Weights */
+  --font-weight-bricolage-light: 200;
+  --font-weight-bricolage-regular: 400;
+  --font-weight-bricolage-medium: 500;
+  --font-weight-bricolage-semibold: 600;
+  --font-weight-bricolage-bold: 700;
+  --font-weight-bricolage-extrabold: 800;
+
+  /* DMSans Font Family */
+  --font-family-dmsans: 'DMSans', ui-sans-serif, system-ui, sans-serif;
+  
+  /* DMSans Font Weights */
+  --font-weight-dmsans-thin: 100;
+  --font-weight-dmsans-extralight: 200;
+  --font-weight-dmsans-light: 300;
+  --font-weight-dmsans-regular: 400;
+  --font-weight-dmsans-medium: 500;
+  --font-weight-dmsans-semibold: 600;
+  --font-weight-dmsans-bold: 700;
+  --font-weight-dmsans-extrabold: 800;
+  --font-weight-dmsans-black: 900;
+}
+  
+@layer base {
+  body {
+    @apply text-foreground font-base bg-background;
+  }
+
+  h1, h2, h3, h4, h5, h6{
+    @apply font-heading;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* Internet Explorer 10+ */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar { 
+    display: none;  /* Safari and Chrome */
+  }
+
+  /* Bricolage Font Utilities */
+  .font-bricolage {
+    font-family: var(--font-family-bricolage);
+  }
+
+  .font-bricolage-light {
+    font-family: var(--font-family-bricolage);
+    font-weight: var(--font-weight-bricolage-light);
+  }
+
+  .font-bricolage-regular {
+    font-family: var(--font-family-bricolage);
+    font-weight: var(--font-weight-bricolage-regular);
+  }
+
+  .font-bricolage-medium {
+    font-family: var(--font-family-bricolage);
+    font-weight: var(--font-weight-bricolage-medium);
+  }
+
+  .font-bricolage-semibold {
+    font-family: var(--font-family-bricolage);
+    font-weight: var(--font-weight-bricolage-semibold);
+  }
+
+  .font-bricolage-bold {
+    font-family: var(--font-family-bricolage);
+    font-weight: var(--font-weight-bricolage-bold);
+  }
+
+  .font-bricolage-extrabold {
+    font-family: var(--font-family-bricolage);
+    font-weight: var(--font-weight-bricolage-extrabold);
+  }
+
+  /* DMSans Font Utilities */
+  .font-dmsans {
+    font-family: var(--font-family-dmsans);
+  }
+
+  .font-dmsans-thin {
+    font-family: var(--font-family-dmsans);
+    font-weight: var(--font-weight-dmsans-thin);
+  }
+
+  .font-dmsans-extralight {
+    font-family: var(--font-family-dmsans);
+    font-weight: var(--font-weight-dmsans-extralight);
+  }
+
+  .font-dmsans-light {
+    font-family: var(--font-family-dmsans);
+    font-weight: var(--font-weight-dmsans-light);
+  }
+
+  .font-dmsans-regular {
+    font-family: var(--font-family-dmsans);
+    font-weight: var(--font-weight-dmsans-regular);
+  }
+
+  .font-dmsans-medium {
+    font-family: var(--font-family-dmsans);
+    font-weight: var(--font-weight-dmsans-medium);
+  }
+
+  .font-dmsans-semibold {
+    font-family: var(--font-family-dmsans);
+    font-weight: var(--font-weight-dmsans-semibold);
+  }
+
+  .font-dmsans-bold {
+    font-family: var(--font-family-dmsans);
+    font-weight: var(--font-weight-dmsans-bold);
+  }
+
+  .font-dmsans-extrabold {
+    font-family: var(--font-family-dmsans);
+    font-weight: var(--font-weight-dmsans-extrabold);
+  }
+
+  .font-dmsans-black {
+    font-family: var(--font-family-dmsans);
+    font-weight: var(--font-weight-dmsans-black);
+  }
+
+  /* Marquee Animation */
+  .animate-marquee {
+    animation: marquee 20s linear infinite;
+  }
+
+  @keyframes marquee {
+    0% {
+      transform: translateX(0%);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
 }

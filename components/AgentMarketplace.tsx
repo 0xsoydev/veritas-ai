@@ -2,11 +2,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useWallet } from '@/lib/wallet-context';
 import { nftService, NFTAgent, AgentMetadata } from '@/lib/nftService';
-import { agentStorageService, StoredAgent } from '@/lib/agentStorageService';
+import { StoredAgent } from '@/lib/agentStorageService';
 import { ethers } from 'ethers';
 
 interface AgentMarketplaceProps {
-  agents: StoredAgent[];
+  agents?: StoredAgent[];
   nftAgents?: NFTAgent[];
 }
 
@@ -34,7 +34,7 @@ interface MarketplaceAgent extends AgentMetadata {
   presencePenalty: number;
 }
 
-export function AgentMarketplace({ agents, nftAgents = [] }: AgentMarketplaceProps) {
+export function AgentMarketplace({ }: AgentMarketplaceProps) {
   const { address, isConnected } = useWallet();
   const [marketplaceAgents, setMarketplaceAgents] = useState<MarketplaceAgent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,7 +139,7 @@ export function AgentMarketplace({ agents, nftAgents = [] }: AgentMarketplacePro
 
   // Filter and sort agents
   const filteredAndSortedAgents = useMemo(() => {
-    let filtered = marketplaceAgents.filter(agent => {
+    const filtered = marketplaceAgents.filter(agent => {
       const matchesSearch = agent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            agent.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            agent.model.toLowerCase().includes(searchTerm.toLowerCase());
@@ -201,17 +201,12 @@ export function AgentMarketplace({ agents, nftAgents = [] }: AgentMarketplacePro
       setError(null);
 
       const rentalCost = BigInt(agent.rentPricePerUse) * BigInt(rentalUses);
-      const inferenceCost = BigInt(agent.usageCost) * BigInt(rentalUses);
-      const totalCost = rentalCost + inferenceCost;
       
       console.log('🔄 Attempting to rent agent:', {
         tokenId: agent.tokenId,
         uses: rentalUses,
         rentalCost: rentalCost.toString(),
-        inferenceCost: inferenceCost.toString(),
-        totalCost: totalCost.toString(),
-        rentPricePerUse: agent.rentPricePerUse.toString(),
-        usageCost: agent.usageCost.toString()
+        rentPricePerUse: agent.rentPricePerUse.toString()
       });
       
       // Check if nftService is ready
@@ -222,8 +217,8 @@ export function AgentMarketplace({ agents, nftAgents = [] }: AgentMarketplacePro
       
       console.log('✅ NFT service is ready, proceeding with rental...');
       
-      // Pay both rental and inference costs upfront
-      await nftService.rentAgentWithInference(agent.tokenId, rentalUses, agent.rentPricePerUse, agent.usageCost, totalCost);
+      // Pay only rental costs
+      await nftService.rentAgent(agent.tokenId, rentalUses, agent.rentPricePerUse);
       
       // Refresh agent data
       await refreshMarketplaceAgents();
@@ -238,9 +233,7 @@ export function AgentMarketplace({ agents, nftAgents = [] }: AgentMarketplacePro
       
       // Show success message
       const rentalCostEth = parseFloat(ethers.formatEther(rentalCost));
-      const inferenceCostEth = parseFloat(ethers.formatEther(inferenceCost));
-      const totalCostEth = rentalCostEth + inferenceCostEth;
-      alert(`🎉 Successfully rented ${agent.name} for ${rentalUses} uses!\n\n✅ All costs prepaid:\n- Rental cost: ${rentalCostEth.toFixed(4)} MATIC\n- Inference cost: ${inferenceCostEth.toFixed(4)} MATIC\n- Total paid: ${totalCostEth.toFixed(4)} MATIC\n\n🚀 You can now use it continuously without any MetaMask prompts!`);
+      alert(`🎉 Successfully rented ${agent.name} for ${rentalUses} uses!\n\n✅ Rental cost: ${rentalCostEth.toFixed(4)} MATIC\n\n🚀 You can now use it!`);
       
     } catch (err) {
       console.error('Failed to rent agent:', err);
@@ -397,11 +390,11 @@ export function AgentMarketplace({ agents, nftAgents = [] }: AgentMarketplacePro
 
   if (!isConnected) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="w-[80vw] mx-auto py-8">
         <div className="text-center py-12">
-          <div className="text-4xl mb-4">🔐</div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Wallet Required</h2>
-          <p className="text-gray-600 mb-6">
+          <div className="text-6xl mb-6">🔐</div>
+          <h2 className="text-3xl font-bricolage-bold text-black mb-4">Wallet Required</h2>
+          <p className="text-black font-dmsans-medium mb-6">
             Please connect your wallet to access the AI Agent Marketplace.
           </p>
         </div>
@@ -411,46 +404,46 @@ export function AgentMarketplace({ agents, nftAgents = [] }: AgentMarketplacePro
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="w-[80vw] h-[70svh] mx-auto py-8">
         <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading marketplace agents...</p>
+          <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-black font-bricolage-bold">Loading marketplace agents...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="w-[80vw] mx-auto py-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">AI Agent Marketplace</h1>
-        <p className="text-gray-600">
+        <h1 className="text-3xl font-bricolage-bold text-black mb-2">🤖 AI Agent Marketplace</h1>
+        <p className="text-black font-dmsans-medium">
           Discover, rent, and use AI agents created by the community
         </p>
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
+        <div className="mb-6 bg-red-100 border-4 border-black rounded-[10px] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-4">
           <div className="flex">
             <div className="flex-shrink-0">
-              <span className="text-red-400">⚠️</span>
+              <span className="text-red-600 text-xl">⚠️</span>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Error</h3>
-              <div className="mt-2 text-sm text-red-700">{error}</div>
+              <h3 className="text-sm font-bricolage-bold text-red-800">Error</h3>
+              <div className="mt-2 text-sm text-red-700 font-dmsans-medium">{error}</div>
             </div>
           </div>
         </div>
       )}
 
       {/* Search and Filters */}
-      <div className="mb-8 bg-white rounded-lg shadow p-6">
+      <div className="mb-8 bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-[10px] p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Search */}
           <div>
-            <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="search" className="block text-sm font-bricolage-bold text-black mb-2">
               Search Agents
             </label>
             <input
@@ -459,20 +452,20 @@ export function AgentMarketplace({ agents, nftAgents = [] }: AgentMarketplacePro
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by name, description, or model..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border-2 border-black rounded-[5px] focus:ring-2 focus:ring-main font-dmsans-medium"
             />
           </div>
 
           {/* Filter Type */}
           <div>
-            <label htmlFor="filter" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="filter" className="block text-sm font-bricolage-bold text-black mb-2">
               Filter Type
             </label>
             <select
               id="filter"
               value={filterType}
               onChange={(e) => setFilterType(e.target.value as any)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border-2 border-black rounded-[5px] focus:ring-2 focus:ring-main font-dmsans-medium"
             >
               <option value="all">All Agents</option>
               <option value="for-rent">For Rent</option>
@@ -484,14 +477,14 @@ export function AgentMarketplace({ agents, nftAgents = [] }: AgentMarketplacePro
 
           {/* Sort By */}
           <div>
-            <label htmlFor="sort" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="sort" className="block text-sm font-bricolage-bold text-black mb-2">
               Sort By
             </label>
             <select
               id="sort"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border-2 border-black rounded-[5px] focus:ring-2 focus:ring-main font-dmsans-medium"
             >
               <option value="name">Name</option>
               <option value="price">Price</option>
@@ -502,14 +495,14 @@ export function AgentMarketplace({ agents, nftAgents = [] }: AgentMarketplacePro
 
           {/* Sort Order */}
           <div>
-            <label htmlFor="order" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="order" className="block text-sm font-bricolage-bold text-black mb-2">
               Order
             </label>
             <select
               id="order"
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as any)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border-2 border-black rounded-[5px] focus:ring-2 focus:ring-main font-dmsans-medium"
             >
               <option value="asc">Ascending</option>
               <option value="desc">Descending</option>
@@ -521,19 +514,19 @@ export function AgentMarketplace({ agents, nftAgents = [] }: AgentMarketplacePro
       {/* Marketplace Content */}
       {marketplaceAgents.length === 0 ? (
         <div className="text-center py-12">
-          <div className="text-4xl mb-4">🤖</div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">No Agents Available</h2>
-          <p className="text-gray-600 mb-6">
+          <div className="text-6xl mb-6">🤖</div>
+          <h2 className="text-3xl font-bricolage-bold text-black mb-4">No Agents Available</h2>
+          <p className="text-black font-dmsans-medium mb-6">
             The marketplace is currently empty. Agents will appear here once they are minted as NFTs.
           </p>
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4 max-w-md mx-auto">
+          <div className="bg-background border-4 border-black rounded-[10px] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-6 max-w-md mx-auto">
             <div className="flex">
               <div className="flex-shrink-0">
-                <span className="text-blue-400">💡</span>
+                <span className="text-black text-2xl">💡</span>
               </div>
               <div className="ml-3">
-                <h3 className="text-sm font-medium text-blue-800">Getting Started</h3>
-                <div className="mt-2 text-sm text-blue-700">
+                <h3 className="text-sm font-bricolage-bold text-black">Getting Started</h3>
+                <div className="mt-2 text-sm text-black font-dmsans-medium">
                   Create your first AI agent and mint it as an NFT to see it appear in the marketplace!
                 </div>
               </div>
@@ -598,135 +591,80 @@ interface AgentCardProps {
 }
 
 function AgentCard({ agent, onRent, onUse, onBuy }: AgentCardProps) {
-  const usageCostEth = parseFloat(ethers.formatEther(agent.usageCost));
   const rentPriceEth = parseFloat(ethers.formatEther(agent.rentPricePerUse));
+  const salePriceEth = agent.salePrice;
 
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-      <div className="p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">{agent.name}</h3>
-            <p className="text-sm text-gray-600 mb-3 line-clamp-2">{agent.description}</p>
-          </div>
-          {agent.isOwner && (
-            <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
-              Owner
-            </span>
-          )}
+    <div className="bg-white border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] rounded-[5px] overflow-hidden">
+      {/* Header Section */}
+      <div className="p-4 border-b-4 border-black">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bricolage-bold text-black">{agent.name}</h3>
+          <button className="bg-gray-200 text-black px-3 py-1 rounded-[5px] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] font-bricolage-bold text-sm">
+            {agent.isOwner ? 'Owner' : 'Rent'}
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content Area with Gradient */}
+      <div className="relative bg-gradient-to-r from-main to-background p-4 min-h-[200px]">
+        {/* Model Section */}
+        <div className="absolute bottom-4 left-4">
+          <div className="text-black font-bricolage-bold text-sm mb-2">Model</div>
+          <button className="bg-gray-200 text-black px-3 py-1 rounded-[5px] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] font-bricolage-bold text-sm">
+            {agent.model}
+          </button>
         </div>
 
-        <div className="space-y-2 mb-4">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Model:</span>
-            <span className="font-medium">{agent.model}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Inference Cost:</span>
-            <span className="font-medium">{usageCostEth.toFixed(4)} MATIC/use</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Max Uses/Day:</span>
-            <span className="font-medium">{agent.maxUsagesPerDay}</span>
-          </div>
-          {agent.isForRent && (
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Rent Price:</span>
-              <span className="font-medium">{rentPriceEth.toFixed(4)} MATIC/use</span>
-            </div>
-          )}
-          {agent.isForRent && (
-            <div className="flex justify-between text-sm text-blue-600">
-              <span className="font-medium">Total per use:</span>
-              <span className="font-medium">{(usageCostEth + rentPriceEth).toFixed(4)} MATIC</span>
-            </div>
-          )}
-          {!agent.isForRent && !agent.isOwner && (
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Status:</span>
-              <span className="font-medium text-orange-600">Not for rent</span>
-            </div>
-          )}
-          {agent.rentalBalance > 0 && (
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Rental Balance:</span>
-              <span className="font-medium text-green-600">{agent.rentalBalance} uses</span>
-            </div>
-          )}
-          {agent.prepaidInferenceBalance > 0 && (
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Prepaid Inference:</span>
-              <span className="font-medium text-blue-600">{agent.prepaidInferenceBalance} uses</span>
-            </div>
-          )}
-          
-          {/* Tool capabilities */}
-          <div className="mt-3">
-            <div className="text-xs text-gray-500 mb-2">Capabilities:</div>
-            <div className="flex flex-wrap gap-1">
-              {agent.enableWebSearch && (
-                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">🌐 Web Search</span>
-              )}
-              {agent.enableCodeExecution && (
-                <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">💻 Code Exec</span>
-              )}
-              {agent.enableBrowserAutomation && (
-                <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">🤖 Browser</span>
-              )}
-              {agent.enableWolframAlpha && (
-                <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">🧮 Wolfram</span>
-              )}
-              {agent.enableStreaming && (
-                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">⚡ Streaming</span>
-              )}
-              {agent.responseFormat === 'json_object' && (
-                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">📄 JSON</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          {/* Primary actions */}
-          <div className="flex space-x-2">
-            {agent.canUse && (
-              <button
-                onClick={onUse}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors"
-              >
-                Use Agent
-              </button>
-            )}
-            {agent.isForSale && !agent.isOwner && (
-              <button
-                onClick={onBuy}
-                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors"
-              >
-                Buy NFT
-              </button>
-            )}
-            {agent.isForRent && !agent.isOwner && (
-              <button
-                onClick={onRent}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-md transition-colors"
-              >
-                Rent Agent
-              </button>
-            )}
-            {!agent.isOwner && !agent.canUse && !agent.isForRent && !agent.isForSale && (
-              <div className="flex-1 text-center py-2 px-4 text-sm text-gray-500 bg-gray-100 rounded-md">
-                Not Available
+        {/* Pricing Section */}
+        <div className="absolute bottom-4 right-4 text-right">
+          <div className="space-y-2">
+            <div>
+              <div className="text-black font-bricolage-bold text-sm">NFT Price</div>
+              <div className="text-black font-bricolage-bold text-lg">
+                {agent.isForSale ? salePriceEth.toFixed(4) : 'N/A'}
               </div>
-            )}
+            </div>
+            <div>
+              <div className="text-black font-bricolage-bold text-sm">Rent Price</div>
+              <div className="text-black font-bricolage-bold text-lg">
+                {agent.isForRent ? rentPriceEth.toFixed(4) : 'N/A'}
+              </div>
+            </div>
           </div>
-          
-          {/* Secondary actions for owners */}
-          {agent.isOwner && (
-            <div className="text-xs text-gray-500 text-center">
-              {agent.isForSale && agent.isForRent && "Listed for both sale and rental"}
-              {agent.isForSale && !agent.isForRent && "Listed for sale only"}
-              {!agent.isForSale && agent.isForRent && "Listed for rental only"}
-              {!agent.isForSale && !agent.isForRent && "Not listed"}
+        </div>
+      </div>
+
+      {/* Action Buttons Section */}
+      <div className="p-4 bg-white">
+        <div className="grid grid-cols-2 gap-3">
+          {agent.isForRent && !agent.isOwner && (
+            <button
+              onClick={onRent}
+              className="bg-background text-black font-bricolage-bold py-3 px-4 rounded-[5px] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all duration-200"
+            >
+              Rent Agent
+            </button>
+          )}
+          {agent.isForSale && !agent.isOwner && (
+            <button
+              onClick={onBuy}
+              className="bg-main text-black font-bricolage-bold py-3 px-4 rounded-[5px] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all duration-200"
+            >
+              Buy NFT
+            </button>
+          )}
+          {agent.canUse && (
+            <button
+              onClick={onUse}
+              className="bg-gray-200 hover:bg-gray-300 text-black font-bricolage-bold py-3 px-4 rounded-[5px] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all duration-200"
+            >
+              Use Agent
+            </button>
+          )}
+          {!agent.isForRent && !agent.isForSale && !agent.canUse && (
+            <div className="col-span-2 text-center py-3 px-4 text-sm text-gray-500 bg-gray-100 rounded-[5px] border-2 border-gray-300 font-dmsans-medium">
+              Not Available
             </div>
           )}
         </div>
@@ -750,20 +688,26 @@ function RentalModal({ agent, uses, onUsesChange, onConfirm, onClose, loading }:
   const totalCost = rentPriceEth * uses;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div className="mt-3">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Rent Agent</h3>
-          
-          <div className="mb-4">
-            <h4 className="font-medium text-gray-900 mb-2">{agent.name}</h4>
-            <p className="text-sm text-gray-600">{agent.description}</p>
-          </div>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
+      <div className="relative top-20 mx-auto p-6 border-4 border-black w-[420px] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-[10px] bg-white">
+        {/* Header */}
+        <div className="mb-6">
+          <h3 className="text-2xl font-bricolage-bold text-black mb-2">Rent Agent</h3>
+          <div className="h-1 w-16 bg-main rounded-full"></div>
+        </div>
+        
+        {/* Agent Info */}
+        <div className="mb-6 p-4 bg-gradient-to-r from-main/10 to-background border-2 border-black rounded-[8px] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+          <h4 className="font-bricolage-bold text-black text-lg mb-2">{agent.name}</h4>
+          <p className="text-sm text-black font-dmsans-medium line-clamp-2">{agent.description}</p>
+        </div>
 
-          <div className="mb-4">
-            <label htmlFor="uses" className="block text-sm font-medium text-gray-700 mb-2">
-              Number of Uses
-            </label>
+        {/* Uses Input */}
+        <div className="mb-6">
+          <label htmlFor="uses" className="block text-sm font-bricolage-bold text-black mb-3">
+            Number of Uses
+          </label>
+          <div className="relative">
             <input
               type="number"
               id="uses"
@@ -771,69 +715,54 @@ function RentalModal({ agent, uses, onUsesChange, onConfirm, onClose, loading }:
               max="1000"
               value={uses}
               onChange={(e) => onUsesChange(parseInt(e.target.value) || 1)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border-2 border-black rounded-[8px] focus:ring-2 focus:ring-main font-dmsans-medium text-lg text-center bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+              placeholder="Enter number of uses"
             />
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-bricolage-bold">
+              uses
+            </div>
           </div>
+        </div>
 
-          <div className="mb-6 p-3 bg-gray-50 rounded-md">
-            <div className="flex justify-between text-sm mb-1">
-              <span>Rent price per use:</span>
-              <span>{rentPriceEth.toFixed(4)} MATIC</span>
+        {/* Pricing Summary */}
+        <div className="mb-6 p-4 bg-background border-2 border-black rounded-[8px] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+          <div className="text-sm font-bricolage-bold text-black mb-3 uppercase tracking-wide">Pricing Summary</div>
+          
+          <div className="space-y-2 mb-4">
+            <div className="flex justify-between items-center">
+              <span className="text-black font-dmsans-medium">Price per use:</span>
+              <span className="font-bricolage-bold text-black">{rentPriceEth.toFixed(4)} MATIC</span>
             </div>
-            <div className="flex justify-between text-sm mb-1">
-              <span>Inference cost per use:</span>
-              <span>{parseFloat(ethers.formatEther(agent.usageCost)).toFixed(4)} MATIC</span>
-            </div>
-            <div className="flex justify-between text-sm mb-1">
-              <span>Number of uses:</span>
-              <span>{uses}</span>
-            </div>
-            <div className="border-t pt-2 mt-2">
-            <div className="flex justify-between text-sm mb-1">
-              <span>Rental cost ({uses} × {rentPriceEth.toFixed(4)} MATIC):</span>
-              <span>{(rentPriceEth * uses).toFixed(4)} MATIC</span>
-            </div>
-            <div className="flex justify-between text-sm mb-1">
-              <span>Inference cost ({uses} × {parseFloat(ethers.formatEther(agent.usageCost)).toFixed(4)} MATIC):</span>
-              <span>{(parseFloat(ethers.formatEther(agent.usageCost)) * uses).toFixed(4)} MATIC</span>
-            </div>
-            <div className="flex justify-between font-medium text-lg text-blue-600">
-              <span>Total upfront payment:</span>
-              <span>{totalCost.toFixed(4)} MATIC</span>
-            </div>
-              <div className="text-xs text-green-600 mt-2 font-medium">
-                <strong>✅ All costs prepaid!</strong> No additional MetaMask prompts when using the agent.
-              </div>
+            <div className="flex justify-between items-center">
+              <span className="text-black font-dmsans-medium">Number of uses:</span>
+              <span className="font-bricolage-bold text-black">{uses}</span>
             </div>
           </div>
+          
+          <div className="border-t-2 border-black pt-3">
+            <div className="flex justify-between items-center">
+              <span className="text-lg font-bricolage-bold text-black">Total Cost:</span>
+              <span className="text-xl font-bricolage-bold text-main">{totalCost.toFixed(4)} MATIC</span>
+            </div>
+          </div>
+        </div>
 
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-            <div className="text-sm text-blue-700">
-              <strong>💡 Before confirming:</strong>
-              <ul className="mt-1 ml-4 list-disc">
-                <li>Ensure MetaMask is unlocked</li>
-                <li>Check you're on Polygon Amoy testnet (Chain ID: 80002)</li>
-                <li>Approve the transaction when prompted</li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="flex space-x-3">
-            <button
-              onClick={onClose}
-              className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded-md transition-colors"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => onConfirm(agent)}
-              disabled={loading}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors disabled:opacity-50"
-            >
-              {loading ? 'Processing...' : 'Confirm Rental'}
-            </button>
-          </div>
+        {/* Action Buttons */}
+        <div className="flex space-x-4">
+          <button
+            onClick={onClose}
+            className="flex-1 bg-background hover:bg-gray-100 text-black font-bricolage-bold py-3 px-4 rounded-[8px] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm(agent)}
+            disabled={loading}
+            className="flex-1 bg-main hover:bg-main/80 text-main-foreground font-bricolage-bold py-3 px-4 rounded-[8px] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all disabled:opacity-50 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+          >
+            {loading ? 'Processing...' : 'Rent Agent'}
+          </button>
         </div>
       </div>
     </div>
@@ -852,42 +781,48 @@ function UsageModal({ agent, onConfirm, onClose, loading }: UsageModalProps) {
   const usageCostEth = parseFloat(ethers.formatEther(agent.usageCost));
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div className="mt-3">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Use Agent</h3>
-          
-          <div className="mb-4">
-            <h4 className="font-medium text-gray-900 mb-2">{agent.name}</h4>
-            <p className="text-sm text-gray-600">{agent.description}</p>
-          </div>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
+      <div className="relative top-20 mx-auto p-6 border-4 border-black w-[420px] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-[10px] bg-white">
+        {/* Header */}
+        <div className="mb-6">
+          <h3 className="text-2xl font-bricolage-bold text-black mb-2">Use Agent</h3>
+          <div className="h-1 w-16 bg-main rounded-full"></div>
+        </div>
+        
+        {/* Agent Info */}
+        <div className="mb-6 p-4 bg-gradient-to-r from-main/10 to-background border-2 border-black rounded-[8px] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+          <h4 className="font-bricolage-bold text-black text-lg mb-2">{agent.name}</h4>
+          <p className="text-sm text-black font-dmsans-medium line-clamp-2">{agent.description}</p>
+        </div>
 
-          <div className="mb-6 p-3 bg-gray-50 rounded-md">
-            <div className="flex justify-between font-medium">
-              <span>Usage cost:</span>
-              <span>{usageCostEth.toFixed(4)} MATIC</span>
-            </div>
-            <p className="text-xs text-gray-600 mt-2">
-              This covers the inference costs for using the agent.
-            </p>
+        {/* Usage Cost */}
+        <div className="mb-6 p-4 bg-background border-2 border-black rounded-[8px] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+          <div className="text-sm font-bricolage-bold text-black mb-3 uppercase tracking-wide">Usage Cost</div>
+          <div className="flex justify-between items-center">
+            <span className="text-lg font-bricolage-bold text-black">Cost per use:</span>
+            <span className="text-xl font-bricolage-bold text-main">{usageCostEth.toFixed(4)} MATIC</span>
           </div>
+          <p className="text-xs text-black mt-2 font-dmsans-medium">
+            This covers the inference costs for using the agent.
+          </p>
+        </div>
 
-          <div className="flex space-x-3">
-            <button
-              onClick={onClose}
-              className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded-md transition-colors"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => onConfirm(agent)}
-              disabled={loading}
-              className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md transition-colors disabled:opacity-50"
-            >
-              {loading ? 'Processing...' : 'Use Agent'}
-            </button>
-          </div>
+        {/* Action Buttons */}
+        <div className="flex space-x-4">
+          <button
+            onClick={onClose}
+            className="flex-1 bg-background hover:bg-gray-100 text-black font-bricolage-bold py-3 px-4 rounded-[8px] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm(agent)}
+            disabled={loading}
+            className="flex-1 bg-main hover:bg-main/80 text-main-foreground font-bricolage-bold py-3 px-4 rounded-[8px] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all disabled:opacity-50 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+          >
+            {loading ? 'Processing...' : 'Use Agent'}
+          </button>
         </div>
       </div>
     </div>
@@ -906,42 +841,48 @@ function BuyModal({ agent, onConfirm, onClose, loading }: BuyModalProps) {
   const salePriceEth = agent.salePrice;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div className="mt-3">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Buy Agent NFT</h3>
-          
-          <div className="mb-4">
-            <h4 className="font-medium text-gray-900 mb-2">{agent.name}</h4>
-            <p className="text-sm text-gray-600">{agent.description}</p>
-          </div>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
+      <div className="relative top-20 mx-auto p-6 border-4 border-black w-[420px] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-[10px] bg-white">
+        {/* Header */}
+        <div className="mb-6">
+          <h3 className="text-2xl font-bricolage-bold text-black mb-2">Buy Agent NFT</h3>
+          <div className="h-1 w-16 bg-main rounded-full"></div>
+        </div>
+        
+        {/* Agent Info */}
+        <div className="mb-6 p-4 bg-gradient-to-r from-main/10 to-background border-2 border-black rounded-[8px] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+          <h4 className="font-bricolage-bold text-black text-lg mb-2">{agent.name}</h4>
+          <p className="text-sm text-black font-dmsans-medium line-clamp-2">{agent.description}</p>
+        </div>
 
-          <div className="mb-6 p-3 bg-gray-50 rounded-md">
-            <div className="flex justify-between font-medium">
-              <span>Sale price:</span>
-              <span>{salePriceEth.toFixed(4)} MATIC</span>
-            </div>
-            <p className="text-xs text-gray-600 mt-2">
-              This will transfer full ownership of the NFT to you.
-            </p>
+        {/* Sale Price */}
+        <div className="mb-6 p-4 bg-background border-2 border-black rounded-[8px] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+          <div className="text-sm font-bricolage-bold text-black mb-3 uppercase tracking-wide">Purchase Price</div>
+          <div className="flex justify-between items-center">
+            <span className="text-lg font-bricolage-bold text-black">Sale price:</span>
+            <span className="text-xl font-bricolage-bold text-main">{salePriceEth.toFixed(4)} MATIC</span>
           </div>
+          <p className="text-xs text-black mt-2 font-dmsans-medium">
+            This will transfer full ownership of the NFT to you.
+          </p>
+        </div>
 
-          <div className="flex space-x-3">
-            <button
-              onClick={onClose}
-              className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded-md transition-colors"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => onConfirm(agent)}
-              disabled={loading}
-              className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-md transition-colors disabled:opacity-50"
-            >
-              {loading ? 'Processing...' : 'Buy NFT'}
-            </button>
-          </div>
+        {/* Action Buttons */}
+        <div className="flex space-x-4">
+          <button
+            onClick={onClose}
+            className="flex-1 bg-background hover:bg-gray-100 text-black font-bricolage-bold py-3 px-4 rounded-[8px] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm(agent)}
+            disabled={loading}
+            className="flex-1 bg-main hover:bg-main/80 text-main-foreground font-bricolage-bold py-3 px-4 rounded-[8px] border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all disabled:opacity-50 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+          >
+            {loading ? 'Processing...' : 'Buy NFT'}
+          </button>
         </div>
       </div>
     </div>

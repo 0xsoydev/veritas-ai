@@ -1,6 +1,6 @@
 "use client"
-import { useState, useEffect } from 'react';
-import { AgentConfig, AgentResponse, ExecutionContext } from '@/lib/groqService';
+import { useState, useEffect, useCallback } from 'react';
+import { AgentResponse, ExecutionContext } from '@/lib/groqService';
 import { GroqClient } from '@/lib/groqClient';
 import { useWallet } from '@/lib/wallet-context';
 import { agentStorageService, StoredChat, StoredAgent } from '@/lib/agentStorageService';
@@ -35,7 +35,7 @@ interface AgentExecutorProps {
 
 export function AgentExecutor({ agents, nftAgents = [], groqClient, onRentalUsesUpdated }: AgentExecutorProps) {
   const { address } = useWallet();
-  const [selectedAgent, setSelectedAgent] = useState<StoredAgent | null>(null);
+  const [selectedAgent] = useState<StoredAgent | null>(null);
   const [selectedNFTAgent, setSelectedNFTAgent] = useState<NFTAgent | null>(null);
   const [userInput, setUserInput] = useState('');
   const [isExecuting, setIsExecuting] = useState(false);
@@ -49,6 +49,32 @@ export function AgentExecutor({ agents, nftAgents = [], groqClient, onRentalUses
   const [userChats, setUserChats] = useState<StoredChat[]>([]);
   const [loadingChats, setLoadingChats] = useState(true);
   const [sessionUsesRemaining, setSessionUsesRemaining] = useState<Map<number, number>>(new Map());
+
+  // Function to sync rental uses from smart contract
+  const syncRentalUsesFromContract = useCallback(async () => {
+    if (!address || !nftService.isReady()) return;
+
+    try {
+      const agents = await nftService.getAllMarketplaceAgents(address);
+      const rentalUses = new Map<number, number>();
+      
+      for (const agent of agents) {
+        if (agent.rentalBalance && agent.rentalBalance > 0) {
+          rentalUses.set(agent.tokenId, agent.rentalBalance);
+        }
+      }
+      
+      setSessionUsesRemaining(rentalUses);
+      console.log('🔄 Synced rental uses from contract:', Array.from(rentalUses.entries()));
+      
+      // Notify parent component that rental uses were updated
+      if (onRentalUsesUpdated) {
+        onRentalUsesUpdated();
+      }
+    } catch (error) {
+      console.error('Failed to sync rental uses from contract:', error);
+    }
+  }, [address, onRentalUsesUpdated]);
 
   // Load session state from localStorage on mount
   useEffect(() => {
@@ -191,104 +217,104 @@ export function AgentExecutor({ agents, nftAgents = [], groqClient, onRentalUses
     loadUserChats();
   }, [address, selectedAgent, currentChat]);
 
-  const executeAgent = async () => {
-    if (!selectedAgent || !userInput.trim()) return;
+  // const executeAgent = async () => {
+  //   if (!selectedAgent || !userInput.trim()) return;
 
-    setIsExecuting(true);
+  //   setIsExecuting(true);
 
-    try {
-      const context: ExecutionContext = {
-        userId: 'demo-user',
-        sessionId: `session-${Date.now()}`,
-        timestamp: Date.now(),
-        metadata: {
-          userAgent: navigator.userAgent,
-          timestamp: new Date().toISOString()
-        }
-      };
+  //   try {
+  //     const context: ExecutionContext = {
+  //       userId: 'demo-user',
+  //       sessionId: `session-${Date.now()}`,
+  //       timestamp: Date.now(),
+  //       metadata: {
+  //         userAgent: navigator.userAgent,
+  //         timestamp: new Date().toISOString()
+  //       }
+  //     };
 
-      const response = await groqClient.executeAgent(selectedAgent, userInput, context);
+  //     const response = await groqClient.executeAgent(selectedAgent, userInput, context);
       
-      // Add to execution history
-      setExecutionHistory(prev => [...prev, {
-        input: userInput,
-        response,
-        timestamp: Date.now()
-      }]);
+  //     // Add to execution history
+  //     setExecutionHistory(prev => [...prev, {
+  //       input: userInput,
+  //       response,
+  //       timestamp: Date.now()
+  //     }]);
 
-      // Save to chat storage if user is connected
-      if (address) {
-        try {
-          console.log('💬 Starting chat storage for address:', address);
-          let chatToUse = currentChat;
+  //     // Save to chat storage if user is connected
+  //     if (address) {
+  //       try {
+  //         console.log('💬 Starting chat storage for address:', address);
+  //         let chatToUse = currentChat;
           
-          // Create new chat if none exists
-          if (!chatToUse) {
-            console.log('💬 Creating new chat for agent:', selectedAgent.id);
-            const newChat = agentStorageService.createChat(selectedAgent.id, address);
-            // Store the chat in Lighthouse first
-            const cid = await agentStorageService.storeChat(newChat);
-            const storedChat = { ...newChat, cid };
-            console.log('💬 Chat stored with CID:', cid);
+  //         // Create new chat if none exists
+  //         if (!chatToUse) {
+  //           console.log('💬 Creating new chat for agent:', selectedAgent.id);
+  //           const newChat = agentStorageService.createChat(selectedAgent.id, address);
+  //           // Store the chat in Lighthouse first
+  //           const cid = await agentStorageService.storeChat(newChat);
+  //           const storedChat = { ...newChat, cid };
+  //           console.log('💬 Chat stored with CID:', cid);
             
-            setCurrentChat(storedChat);
-            // Check if chat already exists before adding to prevent duplicates
-            setUserChats(prev => {
-              const exists = prev.some(chat => chat.id === storedChat.id);
-              if (exists) {
-                console.log('💬 Chat already exists in list, not adding duplicate');
-                return prev;
-              }
-              return [storedChat, ...prev];
-            });
-            chatToUse = storedChat;
-          } else {
-            console.log('💬 Using existing chat:', chatToUse.id);
-          }
+  //           setCurrentChat(storedChat);
+  //           // Check if chat already exists before adding to prevent duplicates
+  //           setUserChats(prev => {
+  //             const exists = prev.some(chat => chat.id === storedChat.id);
+  //             if (exists) {
+  //               console.log('💬 Chat already exists in list, not adding duplicate');
+  //               return prev;
+  //             }
+  //             return [storedChat, ...prev];
+  //           });
+  //           chatToUse = storedChat;
+  //         } else {
+  //           console.log('💬 Using existing chat:', chatToUse.id);
+  //         }
 
-          // Add user message
-          console.log('💬 Adding user message to chat:', chatToUse.id);
-          await agentStorageService.addMessageToChat(chatToUse.id, address, 'user', userInput);
+  //         // Add user message
+  //         console.log('💬 Adding user message to chat:', chatToUse.id);
+  //         await agentStorageService.addMessageToChat(chatToUse.id, address, 'user', userInput);
 
-          // Add assistant response
-          console.log('💬 Adding assistant response to chat:', chatToUse.id);
-          await agentStorageService.addMessageToChat(chatToUse.id, address, 'assistant', response.content);
+  //         // Add assistant response
+  //         console.log('💬 Adding assistant response to chat:', chatToUse.id);
+  //         await agentStorageService.addMessageToChat(chatToUse.id, address, 'assistant', response.content);
 
-          // Update current chat with new messages
-          console.log('💬 Updating chat with new messages');
-          const updatedChat = await agentStorageService.getChat(chatToUse.id, address);
-          if (updatedChat) {
-            console.log('💬 Chat updated successfully, messages count:', updatedChat.messages.length);
-            setCurrentChat(updatedChat);
-            // Update the chat in the userChats list, ensuring no duplicates
-            setUserChats(prev => {
-              const updatedList = prev.map(chat => 
-                chat.id === chatToUse.id ? updatedChat : chat
-              );
-              // Remove any potential duplicates by ID
-              const uniqueChats = updatedList.filter((chat, index, self) => 
-                index === self.findIndex(c => c.id === chat.id)
-              );
-              return uniqueChats;
-            });
-          } else {
-            console.warn('💬 Failed to retrieve updated chat');
-          }
-        } catch (storageError) {
-          console.error('💬 Failed to save chat to storage:', storageError);
-          // Continue execution even if storage fails
-        }
-      } else {
-        console.log('💬 No wallet address, skipping chat storage');
-      }
+  //         // Update current chat with new messages
+  //         console.log('💬 Updating chat with new messages');
+  //         const updatedChat = await agentStorageService.getChat(chatToUse.id, address);
+  //         if (updatedChat) {
+  //           console.log('💬 Chat updated successfully, messages count:', updatedChat.messages.length);
+  //           setCurrentChat(updatedChat);
+  //           // Update the chat in the userChats list, ensuring no duplicates
+  //           setUserChats(prev => {
+  //             const updatedList = prev.map(chat => 
+  //               chat.id === chatToUse.id ? updatedChat : chat
+  //             );
+  //             // Remove any potential duplicates by ID
+  //             const uniqueChats = updatedList.filter((chat, index, self) => 
+  //               index === self.findIndex(c => c.id === chat.id)
+  //             );
+  //             return uniqueChats;
+  //           });
+  //         } else {
+  //           console.warn('💬 Failed to retrieve updated chat');
+  //         }
+  //       } catch (storageError) {
+  //         console.error('💬 Failed to save chat to storage:', storageError);
+  //         // Continue execution even if storage fails
+  //       }
+  //     } else {
+  //       console.log('💬 No wallet address, skipping chat storage');
+  //     }
 
-      setUserInput('');
-    } catch (error: unknown) {
-      alert(`Execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsExecuting(false);
-    }
-  };
+  //     setUserInput('');
+  //   } catch (error: unknown) {
+  //     alert(`Execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  //   } finally {
+  //     setIsExecuting(false);
+  //   }
+  // };
 
   const executeNFTAgent = async () => {
     if (!selectedNFTAgent || !userInput.trim() || isExecuting) return;
@@ -475,35 +501,9 @@ export function AgentExecutor({ agents, nftAgents = [], groqClient, onRentalUses
     setExecutionHistory([]);
   };
 
-  const clearSession = () => {
-    setSessionUsesRemaining(new Map());
-  };
-
-  // Function to sync rental uses from smart contract
-  const syncRentalUsesFromContract = async () => {
-    if (!address || !nftService.isReady()) return;
-
-    try {
-      const agents = await nftService.getAllMarketplaceAgents(address);
-      const rentalUses = new Map<number, number>();
-      
-      for (const agent of agents) {
-        if (agent.rentalBalance && agent.rentalBalance > 0) {
-          rentalUses.set(agent.tokenId, agent.rentalBalance);
-        }
-      }
-      
-      setSessionUsesRemaining(rentalUses);
-      console.log('🔄 Synced rental uses from contract:', Array.from(rentalUses.entries()));
-      
-      // Notify parent component that rental uses were updated
-      if (onRentalUsesUpdated) {
-        onRentalUsesUpdated();
-      }
-    } catch (error) {
-      console.error('Failed to sync rental uses from contract:', error);
-    }
-  };
+  // const clearSession = () => {
+  //   setSessionUsesRemaining(new Map());
+  // };
 
   // Expose sync function to parent components
   useEffect(() => {
@@ -511,7 +511,7 @@ export function AgentExecutor({ agents, nftAgents = [], groqClient, onRentalUses
       // Store the sync function in a way that parent can access it
       (window as any).syncRentalUsesFromContract = syncRentalUsesFromContract;
     }
-  }, [onRentalUsesUpdated]);
+  }, [onRentalUsesUpdated, syncRentalUsesFromContract]);
 
   const refreshChats = async () => {
     if (!address || !selectedAgent) return;
@@ -578,96 +578,96 @@ export function AgentExecutor({ agents, nftAgents = [], groqClient, onRentalUses
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       {/* Agent Selection */}
       <div className="space-y-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Select Agent to Test</h3>
+        <div className="bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-[10px] p-6">
+          <h3 className="text-lg font-bricolage-bold text-black mb-4">Select Agent to Test</h3>
           
-          {(agents.length === 0 && nftAgents.length === 0) ? (
-            <p className="text-gray-500 text-center py-8">
-              No agents available. Create an agent first!
+          {nftAgents.length === 0 ? (
+            <p className="text-black text-center py-8 font-dmsans-medium">
+              No NFT agents available. Create an agent first!
             </p>
           ) : (
             <div className="space-y-4">
               {/* NFT Agents */}
               {nftAgents.length > 0 && (
                 <div>
-                  <h4 className="text-md font-medium text-purple-800 mb-3">🎫 NFT Agents</h4>
+                  <h4 className="text-md font-bricolage-bold text-blacktext-gray-600">🎫 NFT Agents</h4>
                   <div className="space-y-3">
                     {nftAgents.map((agent) => (
                       <div 
                         key={`nft-${agent.tokenId}`}
                         onClick={() => setSelectedNFTAgent(agent)}
-                        className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                        className={`p-4 border-2 border-black rounded-[5px] cursor-pointer transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none ${
                           selectedNFTAgent?.tokenId === agent.tokenId
-                            ? 'border-purple-500 bg-purple-50'
-                            : 'border-purple-200 hover:border-purple-300'
+                            ? 'bg-main text-main-foreground'
+                            : 'bg-background hover:bg-lime-200'
                         }`}
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
-                              <h4 className="font-medium text-gray-900">{agent.name}</h4>
-                              <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                                NFT #{agent.tokenId}
+                              <h4 className={`font-bricolage-bold ${selectedNFTAgent?.tokenId === agent.tokenId ? 'text-main-foreground' : 'text-black'}`}>{agent.name}</h4>
+                              <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">
+                                #{agent.tokenId}
                               </span>
                               {agent.isOwner && (
-                                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">
                                   Owner
                                 </span>
                               )}
                             </div>
-                            <p className="text-sm text-gray-600 mt-1">{agent.description}</p>
+                            <p className={`text-sm mt-1 font-dmsans-medium ${selectedNFTAgent?.tokenId === agent.tokenId ? 'text-main-foreground' : 'text-black'}`}>{agent.description}</p>
                             
                             <div className="flex flex-wrap gap-1 mt-3">
-                              <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">
+                              <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">
                                 {agent.model}
                               </span>
-                              <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                              <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">
                                 {nftService.weiToEth(agent.metadata.usageCost)} MATIC/use
                               </span>
                               {agent.metadata.isForRent && (
-                                <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">
+                                <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">
                                   For Rent
                                 </span>
                               )}
                               {(agent.rentalBalance || 0) > 0 && (
-                                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">
                                   {agent.rentalBalance} rental uses left
                                 </span>
                               )}
                               {!agent.isOwner && (sessionUsesRemaining.get(agent.tokenId) || 0) > 0 && (
-                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">
                                   🎉 {sessionUsesRemaining.get(agent.tokenId) || 0} uses left
                                 </span>
                               )}
                               
                               {/* Tool capabilities */}
                               {agent.toolConfig?.enableWebSearch && (
-                                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">
                                   🌐 Web Search
                                 </span>
                               )}
                               {agent.toolConfig?.enableCodeExecution && (
-                                <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                                <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">
                                   💻 Code Exec
                                 </span>
                               )}
                               {agent.toolConfig?.enableBrowserAutomation && (
-                                <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">
+                                <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">
                                   🤖 Browser
                                 </span>
                               )}
                               {agent.toolConfig?.enableWolframAlpha && (
-                                <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
+                                <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">
                                   🧮 Wolfram
                                 </span>
                               )}
                               {agent.toolConfig?.enableStreaming && (
-                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">
                                   ⚡ Streaming
                                 </span>
                               )}
                               {agent.toolConfig?.responseFormat === 'json_object' && (
-                                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                                <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">
                                   📄 JSON
                                 </span>
                               )}
@@ -680,124 +680,62 @@ export function AgentExecutor({ agents, nftAgents = [], groqClient, onRentalUses
                 </div>
               )}
 
-              {/* Regular Agents */}
-              {agents.length > 0 && (
-                <div>
-                  <h4 className="text-md font-medium text-blue-800 mb-3">🤖 Regular Agents</h4>
-                  <div className="space-y-3">
-                    {agents.map((agent, index) => (
-                      <div 
-                        key={`${agent.id}-${index}`}
-                        onClick={() => setSelectedAgent(agent)}
-                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                          selectedAgent?.id === agent.id
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200 hover:border-blue-300'
-                        }`}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <h4 className="font-medium text-gray-900">{agent.name}</h4>
-                            <p className="text-sm text-gray-600 mt-1">{agent.description}</p>
-                            
-                            <div className="flex flex-wrap gap-1 mt-3">
-                              <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">
-                                {agent.model}
-                              </span>
-                              {agent.enableWebSearch && (
-                                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                                  Web Search
-                                </span>
-                              )}
-                              {agent.enableCodeExecution && (
-                                <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                                  Code Exec
-                                </span>
-                              )}
-                              {agent.enableBrowserAutomation && (
-                                <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">
-                                  Browser
-                                </span>
-                              )}
-                              {agent.enableWolframAlpha && (
-                                <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
-                                  Wolfram
-                                </span>
-                              )}
-                              {agent.enableStreaming && (
-                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                  Streaming
-                                </span>
-                              )}
-                              {agent.responseFormat === 'json_object' && (
-                                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
-                                  JSON
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
 
         {/* Agent Details */}
         {(selectedAgent || selectedNFTAgent) && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold mb-4">Agent Configuration</h3>
+          <div className="bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-[10px] p-6">
+            <h3 className="text-lg font-bricolage-bold text-black mb-4">Agent Configuration</h3>
             
             <div className="space-y-3 text-sm">
               <div>
-                <strong className="text-gray-700">Model:</strong>
-                <span className="ml-2 text-gray-600">{selectedAgent?.model || selectedNFTAgent?.model}</span>
+                <strong className="text-black font-bricolage-bold">Model:</strong>
+                <span className="ml-2 text-black font-dmsans-medium">{selectedAgent?.model || selectedNFTAgent?.model}</span>
               </div>
               <div>
-                <strong className="text-gray-700">Temperature:</strong>
-                <span className="ml-2 text-gray-600">{selectedAgent?.temperature || selectedNFTAgent?.toolConfig?.temperature}</span>
+                <strong className="text-black font-bricolage-bold">Temperature:</strong>
+                <span className="ml-2 text-black font-dmsans-medium">{selectedAgent?.temperature || selectedNFTAgent?.toolConfig?.temperature}</span>
               </div>
               <div>
-                <strong className="text-gray-700">Max Tokens:</strong>
-                <span className="ml-2 text-gray-600">{selectedAgent?.maxTokens || selectedNFTAgent?.toolConfig?.maxTokens}</span>
+                <strong className="text-black font-bricolage-bold">Max Tokens:</strong>
+                <span className="ml-2 text-black font-dmsans-medium">{selectedAgent?.maxTokens || selectedNFTAgent?.toolConfig?.maxTokens}</span>
               </div>
               <div>
-                <strong className="text-gray-700">Response Format:</strong>
-                <span className="ml-2 text-gray-600">{selectedAgent?.responseFormat || selectedNFTAgent?.toolConfig?.responseFormat}</span>
+                <strong className="text-black font-bricolage-bold">Response Format:</strong>
+                <span className="ml-2 text-black font-dmsans-medium">{selectedAgent?.responseFormat || selectedNFTAgent?.toolConfig?.responseFormat}</span>
               </div>
               
               {/* Tool capabilities */}
               <div>
-                <strong className="text-gray-700">Enabled Tools:</strong>
+                <strong className="text-black font-bricolage-bold">Enabled Tools:</strong>
                 <div className="ml-2 mt-1 flex flex-wrap gap-1">
                   {(selectedAgent?.enableWebSearch || selectedNFTAgent?.toolConfig?.enableWebSearch) && (
-                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">🌐 Web Search</span>
+                    <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">🌐 Web Search</span>
                   )}
                   {(selectedAgent?.enableCodeExecution || selectedNFTAgent?.toolConfig?.enableCodeExecution) && (
-                    <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">💻 Code Exec</span>
+                    <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">💻 Code Exec</span>
                   )}
                   {(selectedAgent?.enableBrowserAutomation || selectedNFTAgent?.toolConfig?.enableBrowserAutomation) && (
-                    <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">🤖 Browser</span>
+                    <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">🤖 Browser</span>
                   )}
                   {(selectedAgent?.enableWolframAlpha || selectedNFTAgent?.toolConfig?.enableWolframAlpha) && (
-                    <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">🧮 Wolfram</span>
+                    <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">🧮 Wolfram</span>
                   )}
                   {(selectedAgent?.enableStreaming || selectedNFTAgent?.toolConfig?.enableStreaming) && (
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">⚡ Streaming</span>
+                    <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">⚡ Streaming</span>
                   )}
                   {((selectedAgent?.responseFormat === 'json_object') || (selectedNFTAgent?.toolConfig?.responseFormat === 'json_object')) && (
-                    <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">📄 JSON</span>
+                    <span className="text-xs bg-white text-black px-2 py-1 rounded-[3px] font-bricolage-bold border border-black">📄 JSON</span>
                   )}
                 </div>
               </div>
               
               {(selectedAgent?.customInstructions && selectedAgent.customInstructions.length > 0) && (
                 <div>
-                  <strong className="text-gray-700">Custom Instructions:</strong>
-                  <ul className="ml-4 mt-1 text-gray-600">
+                  <strong className="text-black font-bricolage-bold">Custom Instructions:</strong>
+                  <ul className="ml-4 mt-1 text-black font-dmsans-medium">
                     {selectedAgent.customInstructions.map((instruction, i) => (
                       <li key={i} className="text-xs">• {instruction}</li>
                     ))}
@@ -807,8 +745,8 @@ export function AgentExecutor({ agents, nftAgents = [], groqClient, onRentalUses
               
               {(selectedAgent?.guardrails && selectedAgent.guardrails.length > 0) && (
                 <div>
-                  <strong className="text-gray-700">Guardrails:</strong>
-                  <ul className="ml-4 mt-1 text-gray-600">
+                  <strong className="text-black font-bricolage-bold">Guardrails:</strong>
+                  <ul className="ml-4 mt-1 text-black font-dmsans-medium">
                     {selectedAgent.guardrails.map((guardrail, i) => (
                       <li key={i} className="text-xs">• {guardrail}</li>
                     ))}
@@ -817,9 +755,9 @@ export function AgentExecutor({ agents, nftAgents = [], groqClient, onRentalUses
               )}
 
               {(selectedAgent?.isNFT || selectedNFTAgent) && (
-                <div className="p-3 bg-purple-50 rounded-lg">
-                  <strong className="text-purple-700">NFT Details:</strong>
-                  <div className="mt-1 text-xs text-purple-600">
+                <div className="p-3 bg-background border-2 border-black rounded-[5px] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                  <strong className="text-black font-bricolage-bold">NFT Details:</strong>
+                  <div className="mt-1 text-xs text-black font-dmsans-medium">
                     <div>Usage Cost: {selectedAgent ? `$${selectedAgent.usageCost}` : `${nftService.weiToEth(selectedNFTAgent!.metadata.usageCost)} MATIC`}</div>
                     <div>Max Daily Usage: {selectedAgent?.maxUsagesPerDay || selectedNFTAgent?.metadata.maxUsagesPerDay}</div>
                     {selectedNFTAgent && (
@@ -833,13 +771,13 @@ export function AgentExecutor({ agents, nftAgents = [], groqClient, onRentalUses
         )}
         {/* Chat History */}
         {address && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-[10px] p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">💬 Chat History</h3>
+              <h3 className="text-lg font-bricolage-bold text-black">💬 Chat History</h3>
               <button
                 onClick={refreshChats}
                 disabled={loadingChats}
-                className="text-xs px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors disabled:opacity-50"
+                className="text-xs px-3 py-2 bg-white hover:bg-gray-50 text-black rounded-[5px] font-bricolage-bold border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all disabled:opacity-50 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
                 title="Refresh chat list"
               >
                 {loadingChats ? '⏳' : '🔄'} Refresh
@@ -847,12 +785,12 @@ export function AgentExecutor({ agents, nftAgents = [], groqClient, onRentalUses
             </div>
             
             {loadingChats ? (
-              <p className="text-gray-500 text-center py-4">Loading chats...</p>
+              <p className="text-black text-center py-4 font-dmsans-medium">Loading chats...</p>
             ) : userChats.length === 0 ? (
               <div className="text-center py-4">
-                <p className="text-gray-500">No chats yet for {selectedAgent?.name || 'this agent'}</p>
-                <p className="text-xs text-gray-400 mt-2">Start a conversation with {selectedAgent?.name || 'this agent'} to create your first chat!</p>
-                <p className="text-xs text-gray-400 mt-1">Chats are stored in Lighthouse for wallet: {address.slice(0, 6)}...{address.slice(-4)}</p>
+                <p className="text-black font-dmsans-medium">No chats yet for {selectedAgent?.name || 'this agent'}</p>
+                <p className="text-xs text-black mt-2 font-dmsans-medium">Start a conversation with {selectedAgent?.name || 'this agent'} to create your first chat!</p>
+                <p className="text-xs text-black mt-1 font-dmsans-medium">Chats are stored in Lighthouse for wallet: {address.slice(0, 6)}...{address.slice(-4)}</p>
               </div>
             ) : (
               <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -863,25 +801,25 @@ export function AgentExecutor({ agents, nftAgents = [], groqClient, onRentalUses
                       setCurrentChat(chat);
                       loadChatMessages(chat);
                     }}
-                    className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                    className={`p-3 border-2 border-black rounded-[5px] cursor-pointer transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none ${
                       currentChat?.id === chat.id
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-blue-300'
+                        ? 'bg-main text-main-foreground'
+                        : 'bg-white hover:bg-gray-50'
                     }`}
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <h4 className="font-medium text-sm text-gray-900">
+                        <h4 className={`font-bricolage-bold text-sm ${currentChat?.id === chat.id ? 'text-main-foreground' : 'text-black'}`}>
                           {agents.find(a => a.id === chat.agentId)?.name || 'Unknown Agent'}
                         </h4>
-                        <p className="text-xs text-gray-600 mt-1">
+                        <p className={`text-xs mt-1 font-dmsans-medium ${currentChat?.id === chat.id ? 'text-main-foreground' : 'text-black'}`}>
                           {chat.messages.length} messages
                         </p>
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className={`text-xs mt-1 font-dmsans-medium ${currentChat?.id === chat.id ? 'text-main-foreground' : 'text-black'}`}>
                           {new Date(chat.updatedAt).toLocaleDateString()}
                         </p>
                         {chat.cid && (
-                          <p className="text-xs text-gray-400 mt-1 font-mono">
+                          <p className={`text-xs mt-1 font-mono ${currentChat?.id === chat.id ? 'text-main-foreground' : 'text-black'}`}>
                             CID: {chat.cid.slice(0, 8)}...
                           </p>
                         )}
@@ -896,105 +834,108 @@ export function AgentExecutor({ agents, nftAgents = [], groqClient, onRentalUses
       </div>
 
       {/* Chat Interface */}
-      <div className="lg:col-span-2 space-y-6">
-        {/* Execution History */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="text-lg font-semibold">
-                  Chat with {selectedAgent?.name || selectedNFTAgent?.name || 'No Agent Selected'}
-                </h3>
-                {address && (
-                  <p className="text-sm text-gray-500 font-mono">
-                    Wallet: {address.slice(0, 6)}...{address.slice(-4)}
-                  </p>
+      <div className="lg:col-span-2">
+        {/* Chat Header */}
+        <div className="bg-main border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-[10px] pt-4 pb-6 pl-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-3xl font-bricolage-bold text-black mb-4">
+                Chat with {selectedAgent?.name || selectedNFTAgent?.name || 'No Agent Selected'}
+              </h3>
+              {/* {address && (
+                <p className="text-sm text-black font-mono font-dmsans-medium">
+                  Wallet: {address.slice(0, 6)}...{address.slice(-4)}
+                </p>
+              )} */}
+              {currentChat && (
+                <p className="text-sm text-black mt-1 font-dmsans-medium">
+                  📝 Viewing stored chat: {currentChat.messages.length} messages
+                </p>
+              )}
+              {selectedNFTAgent && !selectedNFTAgent.isOwner && (sessionUsesRemaining.get(selectedNFTAgent.tokenId) || 0) > 0 && (
+                <p className="text-sm text-black mt-1 font-dmsans-medium">
+                  🎉 {sessionUsesRemaining.get(selectedNFTAgent.tokenId) || 0} rental uses left!
+                </p>
+              )}
+            </div>
+            {executionHistory.length > 0 && (
+              <div className="flex items-center gap-2">
+                {ReactMarkdown && (
+                  <button
+                    onClick={() => setShowMarkdown(!showMarkdown)}
+                    className={`text-xs px-3 py-2 rounded-[5px] font-bricolage-bold border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all ${
+                      showMarkdown 
+                        ? 'bg-main text-main-foreground' 
+                        : 'bg-white text-black hover:bg-gray-50'
+                    }`}
+                    title={showMarkdown ? 'Switch to Plain Text' : 'Switch to Markdown'}
+                  >
+                    {showMarkdown ? '📝 Markdown' : '📄 Plain Text'}
+                  </button>
                 )}
-                {currentChat && (
-                  <p className="text-sm text-blue-600 mt-1">
-                    📝 Viewing stored chat: {currentChat.messages.length} messages
-                  </p>
-                )}
-                {selectedNFTAgent && !selectedNFTAgent.isOwner && (sessionUsesRemaining.get(selectedNFTAgent.tokenId) || 0) > 0 && (
-                  <p className="text-sm text-green-600 mt-1">
-                    🎉 {sessionUsesRemaining.get(selectedNFTAgent.tokenId) || 0} rental uses left!
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center gap-3">
-                {executionHistory.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    {ReactMarkdown && (
-                      <button
-                        onClick={() => setShowMarkdown(!showMarkdown)}
-                        className={`text-xs px-2 py-1 rounded transition-colors ${
-                          showMarkdown 
-                            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                        title={showMarkdown ? 'Switch to Plain Text' : 'Switch to Markdown'}
-                      >
-                        {showMarkdown ? '📝 Markdown' : '📄 Plain Text'}
-                      </button>
-                    )}
-                    {!ReactMarkdown && (
-                      <div className="text-xs text-gray-500 px-2 py-1 bg-yellow-50 rounded border border-yellow-200">
-                        📝 Install markdown packages for rich formatting
-                      </div>
-                    )}
-                    <button
-                      onClick={clearHistory}
-                      className="text-sm text-red-600 hover:text-red-800"
-                    >
-                      Clear History
-                    </button>
-                    {currentChat && (
-                      <button
-                        onClick={() => {
-                          setCurrentChat(null);
-                          setExecutionHistory([]);
-                        }}
-                        className="text-sm text-blue-600 hover:text-blue-800"
-                        title="Exit stored chat view"
-                      >
-                        Exit Chat View
-                      </button>
-                    )}
+                {!ReactMarkdown && (
+                  <div className="text-sm text-black px-3 py-2 bg-background rounded-[5px] border-2 border-black font-dmsans-medium">
+                    📝 Install markdown packages for rich formatting
                   </div>
                 )}
+                <button
+                  onClick={clearHistory}
+                  className="text-sm text-black hover:text-red-600 font-bricolage-bold px-3 py-2 mr-4 bg-white border-2 border-black rounded-[5px] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
+                >
+                  Clear History
+                </button>
+                {currentChat && (
+                  <button
+                    onClick={() => {
+                      setCurrentChat(null);
+                      setExecutionHistory([]);
+                    }}
+                    className="text-sm text-black hover:text-blue-600 font-bricolage-bold px-3 py-2 bg-white border-2 border-black rounded-[5px] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
+                    title="Exit stored chat view"
+                  >
+                    Exit Chat View
+                  </button>
+                )}
               </div>
-            </div>
+            )}
           </div>
+        </div>
 
-          <div className="h-96 overflow-y-auto p-6">
+        {/* Execution History */}
+        <div className="bg-white border-3 -mt-7 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] rounded-[10px]">
+          <div className="h-[60svh] overflow-y-auto p-6">
             {executionHistory.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-gray-500">
+              <div className="flex items-center justify-center h-full">
                 {currentChat ? (
-                  <div className="text-center">
-                    <p>No messages in this stored chat</p>
-                    <p className="text-sm text-gray-400 mt-2">This chat appears to be empty</p>
+                  <div className="text-center p-6 bg-background border-2 border-black rounded-[10px] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                    <p className="text-black font-dmsans-medium">No messages in this stored chat</p>
+                    <p className="text-sm text-black mt-2 font-dmsans-medium">This chat appears to be empty</p>
                   </div>
                 ) : selectedAgent ? (
-                  `Start a conversation with ${selectedAgent.name}`
+                  <div className="text-center p-6 bg-background border-2 border-black rounded-[10px] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                    <p className="text-black font-dmsans-medium">Start a conversation with {selectedAgent.name}</p>
+                  </div>
                 ) : (
-                  'Select an agent to begin testing'
+                  <div className="text-center p-6 bg-background border-2 border-black rounded-[10px] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                    <p className="text-black font-dmsans-medium">Select an agent to begin testing</p>
+                  </div>
                 )}
               </div>
             ) : (
               <div className="space-y-4">
                 {executionHistory.map((item, i) => (
-                  <div key={i} className="space-y-3">
+                  <div key={i} className="space-y-4">
                     {/* User Message */}
                     <div className="flex justify-end">
-                      <div className="max-w-xs lg:max-w-md px-4 py-2 bg-blue-600 text-white rounded-lg">
-                        <p className="text-sm">{item.input}</p>
+                      <div className="max-w-xs lg:max-w-md px-4 py-3 bg-main text-main-foreground border-2 border-black rounded-[10px]">
+                        <p className="text-sm font-dmsans-medium">{item.input}</p>
                       </div>
                     </div>
 
                     {/* Agent Response */}
                     <div className="flex justify-start">
                       <div className="max-w-xs lg:max-w-md">
-                        <div className="px-4 py-2 bg-gray-100 text-gray-900 rounded-lg">
+                        <div className="px-4 py-3 bg-white text-black border-2 border-black rounded-[10px]">
                           {showMarkdown && ReactMarkdown ? (
                             <div className="text-sm prose prose-sm max-w-none prose-pre:bg-gray-800 prose-pre:text-gray-100 prose-code:bg-gray-200 prose-code:px-1 prose-code:rounded">
                               <ReactMarkdown
@@ -1084,26 +1025,24 @@ export function AgentExecutor({ agents, nftAgents = [], groqClient, onRentalUses
                               </ReactMarkdown>
                             </div>
                           ) : (
-                            <div className="text-sm whitespace-pre-wrap">
+                            <div className="text-sm whitespace-pre-wrap font-dmsans-medium">
                               {item.response.content}
                             </div>
                           )}
                         </div>
                         
                         {/* Response Metadata */}
-                        <div className="mt-2 px-2 text-xs text-gray-500">
+                        <div className="mt-2 text-xs text-gray-500 font-dmsans-medium">
                           <div className="flex justify-between">
                             <span>Tokens: {item.response.tokenUsage.totalTokens}</span>
                             <span>Time: {item.response.executionTime}ms</span>
+                            <span>Cost: ${item.response.cost.toFixed(6)}</span>
                           </div>
                           {item.response.toolsUsed.length > 0 && (
                             <div className="mt-1">
-                              Tools used: {item.response.toolsUsed.join(', ')}
+                              Tools: {item.response.toolsUsed.join(', ')}
                             </div>
                           )}
-                          <div className="mt-1">
-                            Cost: ${item.response.cost.toFixed(6)}
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -1114,75 +1053,73 @@ export function AgentExecutor({ agents, nftAgents = [], groqClient, onRentalUses
           </div>
 
           {/* Input Area */}
-          <div className="p-6 border-t border-gray-200">
-            <div className="flex space-x-3">
+          <div className="p-6  border-black">
+            <div className="flex items-center space-x-3">
               <input
                 type="text"
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && !isExecuting && (selectedAgent ? executeAgent() : selectedNFTAgent ? executeNFTAgent() : null)}
-                disabled={(!selectedAgent && !selectedNFTAgent) || isExecuting}
+                onKeyPress={(e) => e.key === 'Enter' && !isExecuting && (selectedNFTAgent ? executeNFTAgent() : null)}
+                disabled={!selectedNFTAgent || isExecuting}
                 placeholder={
-                  (!selectedAgent && !selectedNFTAgent)
-                    ? "Select an agent first..." 
+                  !selectedNFTAgent
+                    ? "Select an NFT agent first..." 
                     : "Type your message..."
                 }
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                className="flex-1 px-6 py-4 border-2 border-black rounded-full focus:ring-2 focus:ring-main disabled:bg-gray-100 font-dmsans-medium"
               />
               <button
-                onClick={selectedAgent ? executeAgent : selectedNFTAgent ? executeNFTAgent : undefined}
-                disabled={(!selectedAgent && !selectedNFTAgent) || !userInput.trim() || isExecuting}
-                className={`px-6 py-2 text-white rounded-lg font-medium transition-colors ${
+                onClick={selectedNFTAgent ? executeNFTAgent : undefined}
+                disabled={!selectedNFTAgent || !userInput.trim() || isExecuting}
+                className={`w-12 h-12 text-white rounded-full font-bricolage-bold border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all disabled:bg-gray-400 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center ${
                   selectedNFTAgent 
-                    ? 'bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400'
-                    : 'bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400'
+                    ? 'bg-main hover:bg-main/80'
+                    : 'bg-main hover:bg-main/80'
                 }`}
               >
                 {isExecuting ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Running...</span>
-                  </div>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                 ) : (
-                  selectedNFTAgent ? 'Send (NFT)' : 'Send'
+                  <svg 
+                    className="w-5 h-5" 
+                    fill="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                  </svg>
                 )}
               </button>
             </div>
 
-            {(selectedAgent || selectedNFTAgent) && (
-              <div className="mt-3 space-y-1">
-                <div className="text-xs text-gray-500">
-                  <strong>Model:</strong> {selectedAgent?.model || selectedNFTAgent?.model} | 
-                  <strong>Temperature:</strong> {selectedAgent?.temperature || selectedNFTAgent?.toolConfig?.temperature} | 
-                  <strong>Max Tokens:</strong> {selectedAgent?.maxTokens || selectedNFTAgent?.toolConfig?.maxTokens}
-                </div>
+            {selectedNFTAgent && (
+              <div className="mt-3">
                 <div className="flex flex-wrap gap-1">
-                  {(selectedAgent?.enableWebSearch || selectedNFTAgent?.toolConfig?.enableWebSearch) && (
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">🌐 Web Search</span>
+                  {selectedNFTAgent?.toolConfig?.enableWebSearch && (
+                    <span className="text-xs bg-white text-black px-2 py-0.5 rounded-[3px] font-bricolage-bold border border-black">🌐 Web Search</span>
                   )}
-                  {(selectedAgent?.enableCodeExecution || selectedNFTAgent?.toolConfig?.enableCodeExecution) && (
-                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">💻 Code Exec</span>
+                  {selectedNFTAgent?.toolConfig?.enableCodeExecution && (
+                    <span className="text-xs bg-white text-black px-2 py-0.5 rounded-[3px] font-bricolage-bold border border-black">💻 Code Exec</span>
                   )}
-                  {(selectedAgent?.enableBrowserAutomation || selectedNFTAgent?.toolConfig?.enableBrowserAutomation) && (
-                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">❌ Browser (N/A)</span>
+                  {selectedNFTAgent?.toolConfig?.enableBrowserAutomation && (
+                    <span className="text-xs bg-white text-black px-2 py-0.5 rounded-[3px] font-bricolage-bold border border-black">❌ Browser (N/A)</span>
                   )}
-                  {(selectedAgent?.enableWolframAlpha || selectedNFTAgent?.toolConfig?.enableWolframAlpha) && (
-                    <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">❌ Wolfram (N/A)</span>
+                  {selectedNFTAgent?.toolConfig?.enableWolframAlpha && (
+                    <span className="text-xs bg-white text-black px-2 py-0.5 rounded-[3px] font-bricolage-bold border border-black">❌ Wolfram (N/A)</span>
                   )}
-                  {(selectedAgent?.enableStreaming || selectedNFTAgent?.toolConfig?.enableStreaming) && (
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">⚡ Streaming</span>
+                  {selectedNFTAgent?.toolConfig?.enableStreaming && (
+                    <span className="text-xs bg-white text-black px-2 py-0.5 rounded-[3px] font-bricolage-bold border border-black">⚡ Streaming</span>
                   )}
-                  {(selectedAgent?.responseFormat === 'json_object' || selectedNFTAgent?.toolConfig?.responseFormat === 'json_object') && (
-                    <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">📄 JSON</span>
+                  {selectedNFTAgent?.toolConfig?.responseFormat === 'json_object' && (
+                    <span className="text-xs bg-white text-black px-2 py-0.5 rounded-[3px] font-bricolage-bold border border-black">📄 JSON</span>
                   )}
-                  {((selectedAgent?.customInstructions && selectedAgent.customInstructions.length > 0) || (selectedNFTAgent?.customInstructions && selectedNFTAgent.customInstructions.length > 0)) && (
-                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">
-                      📋 {(selectedAgent?.customInstructions?.length || selectedNFTAgent?.customInstructions?.length || 0)} Custom Rules
+                  {selectedNFTAgent?.customInstructions && selectedNFTAgent.customInstructions.length > 0 && (
+                    <span className="text-xs bg-white text-black px-2 py-0.5 rounded-[3px] font-bricolage-bold border border-black">
+                      📋 {selectedNFTAgent.customInstructions.length} Custom Rules
                     </span>
                   )}
-                  {((selectedAgent?.guardrails && selectedAgent.guardrails.length > 0) || (selectedNFTAgent?.guardrails && selectedNFTAgent.guardrails.length > 0)) && (
-                    <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">
-                      🚨 {(selectedAgent?.guardrails?.length || selectedNFTAgent?.guardrails?.length || 0)} Guardrails
+                  {selectedNFTAgent?.guardrails && selectedNFTAgent.guardrails.length > 0 && (
+                    <span className="text-xs bg-white text-black px-2 py-0.5 rounded-[3px] font-bricolage-bold border border-black">
+                      🚨 {selectedNFTAgent.guardrails.length} Guardrails
                     </span>
                   )}
                 </div>
@@ -1191,119 +1128,6 @@ export function AgentExecutor({ agents, nftAgents = [], groqClient, onRentalUses
           </div>
         </div>
 
-        {/* Quick Test Prompts */}
-        {selectedAgent && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h4 className="text-md font-semibold mb-3">Quick Test Prompts</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {/* Base Prompts */}
-              <button
-                onClick={() => setUserInput("Hello! Can you introduce yourself and tell me what you can do?")}
-                className="text-left p-2 text-sm bg-gray-50 hover:bg-gray-100 rounded border text-gray-700 transition-colors"
-              >
-                👋 Introduction & Capabilities
-              </button>
-              
-              {/* Feature-Specific Prompts */}
-              {selectedAgent.enableWebSearch && (
-                <button
-                  onClick={() => setUserInput("Search for the latest news about artificial intelligence and summarize the top 3 stories")}
-                  className="text-left p-2 text-sm bg-green-50 hover:bg-green-100 rounded border text-green-700 transition-colors"
-                >
-                  🌐 Test Browser Search
-                </button>
-              )}
-
-              {selectedAgent.enableCodeExecution && (
-                <button
-                  onClick={() => setUserInput("Write and execute a Python function to calculate the first 10 fibonacci numbers and show the result")}
-                  className="text-left p-2 text-sm bg-purple-50 hover:bg-purple-100 rounded border text-purple-700 transition-colors"
-                >
-                  💻 Test Code Interpreter
-                </button>
-              )}
-
-              {/* Note: Browser automation and Wolfram Alpha are not available in GroqCloud's current API */}
-              {(selectedAgent.enableBrowserAutomation || selectedAgent.enableWolframAlpha) && (
-                <div className="col-span-2 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700">
-                  ⚠️ Note: Browser automation and Wolfram Alpha are not currently available in GroqCloud's API format. 
-                  Only Browser Search and Code Interpreter are supported.
-                </div>
-              )}
-
-              {selectedAgent.responseFormat === 'json_object' && (
-                <button
-                  onClick={() => setUserInput("Return a JSON object with your name, model, enabled features, and a sample task you can perform")}
-                  className="text-left p-2 text-sm bg-yellow-50 hover:bg-yellow-100 rounded border text-yellow-700 transition-colors"
-                >
-                  📄 Test JSON Response
-                </button>
-              )}
-
-              {/* Model-specific prompts */}
-              {selectedAgent.model.includes('compound') && (
-                <button
-                  onClick={() => setUserInput("Use multiple tools to research the current price of Bitcoin, write code to calculate percentage change, and explain the market trend")}
-                  className="text-left p-2 text-sm bg-indigo-50 hover:bg-indigo-100 rounded border text-indigo-700 transition-colors"
-                >
-                  🔧 Test Multi-Tool Usage (Compound)
-                </button>
-              )}
-
-              {/* Temperature-specific prompts */}
-              {selectedAgent.temperature > 0.8 && (
-                <button
-                  onClick={() => setUserInput("Write a creative story about an AI that discovers it can use tools")}
-                  className="text-left p-2 text-sm bg-pink-50 hover:bg-pink-100 rounded border text-pink-700 transition-colors"
-                >
-                  🎨 Test Creativity (High Temp)
-                </button>
-              )}
-
-              {selectedAgent.temperature < 0.3 && (
-                <button
-                  onClick={() => setUserInput("Provide a detailed, step-by-step analysis of how machine learning algorithms work")}
-                  className="text-left p-2 text-sm bg-blue-50 hover:bg-blue-100 rounded border text-blue-700 transition-colors"
-                >
-                  🎯 Test Precision (Low Temp)
-                </button>
-              )}
-
-              {/* General prompts */}
-              <button
-                onClick={() => setUserInput("What&apos;s 2^10 + 5*7? Show your work.")}
-                className="text-left p-2 text-sm bg-gray-50 hover:bg-gray-100 rounded border text-gray-700 transition-colors"
-              >
-                🔢 Basic Math Test
-              </button>
-
-              {ReactMarkdown ? (
-                <button
-                  onClick={() => setUserInput("Create a comprehensive markdown document explaining how to set up a Python environment. Include headings, code blocks, lists, links, and tables.")}
-                  className="text-left p-2 text-sm bg-green-50 hover:bg-green-100 rounded border text-green-700 transition-colors"
-                >
-                  📝 Test Markdown Rendering
-                </button>
-              ) : (
-                <button
-                  onClick={() => setUserInput("Create a well-structured guide explaining how to set up a Python environment. Use clear sections, code examples, and bullet points for organization.")}
-                  className="text-left p-2 text-sm bg-green-50 hover:bg-green-100 rounded border text-green-700 transition-colors"
-                >
-                  📝 Test Structured Response
-                </button>
-              )}
-
-              {selectedAgent.customInstructions && selectedAgent.customInstructions.length > 0 && (
-                <button
-                  onClick={() => setUserInput("Please demonstrate how you follow your custom instructions with an example")}
-                  className="text-left p-2 text-sm bg-indigo-50 hover:bg-indigo-100 rounded border text-indigo-700 transition-colors"
-                >
-                  📋 Test Custom Instructions
-                </button>
-              )}
-            </div>
-          </div>
-        )}
 
       </div>
     </div>
